@@ -655,6 +655,7 @@ handle_options(Opts0) ->
 			  handle_option(client_preferred_next_protocols, Opts, undefined)),
 		    log_alert = handle_option(log_alert, Opts, true),
 		    server_name_indication = handle_option(server_name_indication, Opts, undefined),
+		    sni_hosts = handle_option(sni_hosts, Opts, []),
 		    honor_cipher_order = handle_option(honor_cipher_order, Opts, false),
 		    protocol = proplists:get_value(protocol, Opts, tls)
 		   },
@@ -669,7 +670,7 @@ handle_options(Opts0) ->
 		  cb_info, renegotiate_at, secure_renegotiate, hibernate_after,
 		  erl_dist, next_protocols_advertised,
 		  client_preferred_next_protocols, log_alert,
-		  server_name_indication, honor_cipher_order],
+		  server_name_indication, honor_cipher_order, sni_hosts],
 
     SockOpts = lists:foldl(fun(Key, PropList) ->
 				   proplists:delete(Key, PropList)
@@ -845,10 +846,18 @@ validate_option(server_name_indication, disable) ->
     disable;
 validate_option(server_name_indication, undefined) ->
     undefined;
+validate_option(sni_hosts, []) ->
+    [];
+validate_option(sni_hosts, [{Hostname, SSLOptions} | Tail]) when is_list(Hostname) ->
+	[{Hostname, validate_options(SSLOptions)} | validate_option(sni_hosts, Tail)];
 validate_option(honor_cipher_order, Value) when is_boolean(Value) ->
     Value;
 validate_option(Opt, Value) ->
     throw({error, {options, {Opt, Value}}}).
+
+
+validate_options([{Opt, Value} | Tail]) ->
+	[validate_option(Opt, Value) | validate_options(Tail)].
 
 validate_npn_ordering(client) ->
     ok;

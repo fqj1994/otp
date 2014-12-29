@@ -390,6 +390,49 @@ initial_state(Role, Host, Port, Socket, {SSLOptions, SocketOptions, Tracker}, Us
 	   tracker = Tracker
 	  }.
 
+
+update_ssl_options_from_sni_(SSLOption, [{cert, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{cert = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{certfile, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{certfile = list_to_binary(V)}, T);
+update_ssl_options_from_sni_(SSLOption, [{key, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{key = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{keyfile, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{keyfile = list_to_binary(V)}, T);
+update_ssl_options_from_sni_(SSLOption, [{password, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{password = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{cacerts, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{cacerts = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{ciphers, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{ciphers = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{depth, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{depth = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{verify_fun, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{verify_fun = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{verify, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{verify = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{cacertfile, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{cacertfile = list_to_binary(V)}, T);
+update_ssl_options_from_sni_(SSLOption, [{dhfile, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{dhfile = list_to_binary(V)}, T);
+update_ssl_options_from_sni_(SSLOption, [{reuse_session, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{reuse_session = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{reuse_sessions, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{reuse_sessions = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{dh, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{dh = V}, T);
+update_ssl_options_from_sni_(SSLOption, [{fail_if_no_peer_cert, V} | T]) ->
+	update_ssl_options_from_sni_(SSLOption#ssl_options{fail_if_no_peer_cert = V}, T);
+update_ssl_options_from_sni_(SSLOption, []) ->
+	SSLOption.
+update_ssl_options_from_sni(OrigSSLOptions, SNIHostname) ->
+	case proplists:get_value(SNIHostname, OrigSSLOptions#ssl_options.sni_hosts) of
+		undefined ->
+			undefined;
+		SSLOption ->
+			update_ssl_options_from_sni_(OrigSSLOptions, SSLOption)
+	end.
+
 next_state(Current,_, #alert{} = Alert, #state{negotiated_version = Version} = State) ->
     handle_own_alert(Alert, Version, Current, State);
 
@@ -431,7 +474,36 @@ next_state(Current, Next, #ssl_tls{type = ?HANDSHAKE, fragment = Data},
    	end,
     try
 	{Packets, Buf} = tls_handshake:get_tls_handshake(Version,Data,Buf0),
-	State = State0#state{protocol_buffers =
+	State1 = case Packets of
+				 [{#client_hello{extensions=HelloExtensions} = ClientHello, _}] ->
+					 case HelloExtensions#hello_extensions.sni of
+						 undefined ->
+							 State0;
+						 #sni{hostname = Hostname} ->
+							 OrigSSLOptions = State0#state.ssl_options,
+							 NewOptions = update_ssl_options_from_sni(State0#state.ssl_options, Hostname),
+							 case NewOptions of
+								 undefined ->
+									 State0;
+								 _ ->
+									 {ok, Ref, CertDbHandle, FileRefHandle, CacheHandle, OwnCert, Key, DHParams} = 
+									 ssl_config:init(NewOptions, State0#state.role),
+									 State0#state{
+									   session = State0#state.session#session{own_certificate = OwnCert},
+									   file_ref_db = FileRefHandle,
+									   cert_db_ref = Ref,
+									   cert_db = CertDbHandle,
+									   session_cache = CacheHandle,
+									   private_key = Key,
+									   diffie_hellman_params = DHParams,
+									   ssl_options = NewOptions
+									  }
+							 end
+					 end;
+				 _ ->
+					 State0
+			 end,
+	State = State1#state{protocol_buffers =
 				 Buffers#protocol_buffers{tls_packets = Packets,
 							  tls_handshake_buffer = Buf}},
 	handle_tls_handshake(Handle, Next, State)
