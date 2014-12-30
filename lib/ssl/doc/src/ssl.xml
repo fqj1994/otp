@@ -89,7 +89,7 @@
       {ssl_imp, ssl_imp()} | {reuse_sessions, boolean()} | {reuse_session, fun()}
       {next_protocols_advertised, [binary()]} |
       {client_preferred_next_protocols, {client | server, [binary()]} | {client | server, [binary()], binary()}} |
-      {log_alert, boolean()} | {server_name_indication, hostname() | disable}
+      {log_alert, boolean()} | {server_name_indication, hostname() | disable} | {sni_hosts, [{hostname(), ssloptions()}]}
     </c></p>
 
     <p><c>transportoption() = {cb_info, {CallbackModule::atom(), DataTag::atom(), ClosedTag::atom(), ErrTag:atom()}}
@@ -475,7 +475,7 @@ fun(srp, Username :: string(), UserState :: term()) ->
       SuggestedSessionId is a binary(),  PeerCert is a DER encoded
       certificate, Compression is an enumeration integer
       and CipherSuite is of type ciphersuite().
-    </item>
+      </item>
 
       <tag>{next_protocols_advertised, Protocols :: [binary()]}</tag>
       <item>The list of protocols to send to the client if the client indicates
@@ -493,6 +493,14 @@ fun(srp, Username :: string(), UserState :: term()) ->
       <tag>{honor_cipher_order, boolean()}</tag>
       <item>If true, use the server's preference for cipher selection. If false
       (the default), use the client's preference.
+      </item>
+
+      <tag>{sni_hosts, [{hostname(), ssloptions()}]</tag>
+      <item>If clients send a client hello with SNI extension, and the hostname
+      the client gives matches one of your list. Most of the server side SSL options
+      including but not limited to keyfile, cacertfile, and certfile will be replaced
+      with your given ssloptions(). This allowes you to provide different verify or
+      certificates to different hostname on a single IP address.
       </item>
     </taglist>
   </section>
@@ -864,6 +872,20 @@ fun(srp, Username :: string(), UserState :: term()) ->
       <desc>
         <p>Stops the Ssl application.
           <seealso marker="kernel:application">application(3)</seealso></p>
+      </desc>
+    </func>
+
+    <func>
+      <name>sni_hostname(AcceptSocket) -> undefined | Hostname</name>
+      <fsummary>Get the hostname of SNI extension</fsummary>
+      <type>
+        <v>AcceptSocket = sslsocket()</v>
+        <v>Hostname = hostname()</v>
+      </type>
+      <desc>
+        <p>This function returns the Hostname of the SNI extension if client
+          gives a hostname in client hello and it matches the hostname in your
+          sni_hosts option. Otherwise, undefined is returned.</p>
       </desc>
     </func>
 
