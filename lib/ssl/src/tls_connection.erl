@@ -496,7 +496,8 @@ next_state(Current, Next, #ssl_tls{type = ?HANDSHAKE, fragment = Data},
 									   session_cache = CacheHandle,
 									   private_key = Key,
 									   diffie_hellman_params = DHParams,
-									   ssl_options = NewOptions
+									   ssl_options = NewOptions,
+									   sni_hostname = Hostname
 									  }
 							 end
 					 end;

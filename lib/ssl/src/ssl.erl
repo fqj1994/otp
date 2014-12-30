@@ -38,7 +38,7 @@
 %% SSL/TLS protocol handling
 -export([cipher_suites/0, cipher_suites/1, suite_definition/1,
 	 connection_info/1, versions/0, session_info/1, format_error/1,
-	 renegotiate/1, prf/5, negotiated_next_protocol/1]).
+	 renegotiate/1, prf/5, negotiated_next_protocol/1, sni_hostname/1]).
 %% Misc
 -export([random_bytes/1]).
 
@@ -245,6 +245,14 @@ close(#sslsocket{pid = Pid}) when is_pid(Pid) ->
     ssl_connection:close(Pid);
 close(#sslsocket{pid = {ListenSocket, #config{transport_info={Transport,_, _, _}}}}) ->
     Transport:close(ListenSocket).
+
+%%--------------------------------------------------------------------
+-spec sni_hostname(#sslsocket{}) -> string() | undefined.
+%%
+%% Description: Get the hostname of SNI extension
+%%--------------------------------------------------------------------
+sni_hostname(#sslsocket{pid = Pid}) when is_pid(Pid) ->
+	ssl_connection:sni_hostname(Pid).
 
 %%--------------------------------------------------------------------
 -spec send(#sslsocket{}, iodata()) -> ok | {error, reason()}.
